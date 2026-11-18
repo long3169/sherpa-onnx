@@ -1,0 +1,23 @@
+name: Build sherpa-onnx iOS single xcframework
+on:
+  workflow_dispatch: # 手动触发，你自己点按钮跑
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew install cmake wget
+
+      - name: Build iOS (static onnxruntime + disable coreml)
+        run: |
+          ./build-ios-shared.sh --static-onnxruntime --disable-coreml
+
+      - name: Upload compiled xcframework
+        uses: actions/upload-artifact@v4
+        with:
+          path: ./sherpa-onnx-ios-universal.xcframework
+          name: sherpa-onnx-ios-universal
