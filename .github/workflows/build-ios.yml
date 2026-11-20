@@ -1,31 +1,57 @@
-name: Build sherpa-onnx iOS single xcframework
-
+name: Build sherpa-onnx iOS xcframework (CPU only, no CoreML)
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
 
 jobs:
   build:
     runs-on: macos-latest
     steps:
-      - name: Checkout source
+      - name: Checkout sherpa-onnx
         uses: actions/checkout@v4
         with:
-          submodules: true
+          repository: k2-fsa/sherpa-onnx
+          ref: v2.0.0
+          path: sherpa-onnx
 
-      - name: Install brew dependencies
+      - name: Install dependencies
         run: |
-          brew install cmake
+          brew install cmake wget
 
-      - name: Build iOS
+      - name: Build iOS arm64 (xcframework, CPU only)
+        working-directory: ./sherpa-onnx
         run: |
-          chmod +x ./build-ios.sh
-          ./build-ios.sh
+          mkdir -p build-ios
+          cd build-ios
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
+            -DCMAKE_INSTALL_PREFIX=install \
+            -DSHERPA_ONNX_ENABLE_COREML=OFF \
+            -DSHERPA_ONNX_BUILD_SHARED_LIBS=ON \
+            -DSHERPA_ONNX_BUILD_EXAMPLES=OFF \
+            -DSHERPA_ONNX_ENABLE_TESTS=OFF \
+            -DSHERPA_ONNX_ENABLE_BENCHMARK=OFF \
+            -DSHERPA_ONNX_ENABLE_PORTAUDIO=OFF
+          make -j$(sysctl -n hw.ncpu)
+          make install
 
-      - name: Upload output (xcframework + header include)
+      - name: Package xcframework
+        working-directory: ./sherpa-onnx/build-ios
+        run: |
+          ls -la
+          ls -la install/include
+          mkdir -p output
+          xcodebuild -create-xcframework \
+            -library libsherpa-onnx.dylib \
+            -headers install/include \
+            -output output/sherpa-onnx.xcframework
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sherpa-onnx-ios-full
-          path: |
-            build-ios/sherpa-onnx.xcframework
-            build-ios/install/include
-
+          name: sherpa-onnx-ios-xcframework
+          path: sherpa-onnx/build-ios/output/sherpa-onnx.xcframework
